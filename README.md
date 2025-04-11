@@ -217,7 +217,9 @@ Ponieważ w tym przypadku RTC używa wewnętrznego sygnału zegarowego (ACLK) za
 
 
 
-Po przeprowadzeniu dokładnej analizy, mogę wyjaśnić dlaczego drugi przykład działa prawidłowo:
+### Dlaczego 3 przykład działa prawidłowo:
+Ten działający przykład jest oficjalnym kodem demonstracyjnym od Texas Instruments z uwzględnieniem znanych problemów opisanych w erracie dla tego mikrokontrolera.
+Dzięki użyciu wewnętrznego źródła zegara i odpowiedniej konfiguracji dzielników, może on uniknąć błędów, które występują przy bezpośrednim korzystaniu z zewnętrznego kryształu.
 
 1. **Źródło zegara dla RTC**:
    - Działający przykład używa `RTCSSEL_2` (wyjście z preskalera RT1PS) jako źródła zegara
@@ -243,8 +245,6 @@ Po przeprowadzeniu dokładnej analizy, mogę wyjaśnić dlaczego drugi przykład
    - Działający przykład zawiera pełną obsługę wszystkich możliwych kodów przerwania RTC
    - To zapewnia, że wszystkie potencjalne przerwania są obsługiwane poprawnie
 
-Ten działający przykład jest oficjalnym kodem demonstracyjnym od Texas Instruments, prawdopodobnie zaprojektowanym z uwzględnieniem znanych problemów opisanych w erracie dla tego mikrokontrolera.
-Dzięki użyciu wewnętrznego źródła zegara i odpowiedniej konfiguracji dzielników, może on uniknąć błędów, które występują przy bezpośrednim korzystaniu z zewnętrznego kryształu.
 
 ```c
 #include <msp430.h>
