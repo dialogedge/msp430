@@ -1,7 +1,6 @@
 # msp430
 
-errata na stronie  
-+ [errata-slaz282ac.pdf](https://github.com/dialogedge/msp430/blob/main/errata-slaz282ac.pdf)
+errata na stronie [errata-slaz282ac.pdf](https://github.com/dialogedge/msp430/blob/main/errata-slaz282ac.pdf)
 dotyczy mikrokontrolera z rodziny MSP430 (najprawdopodobniej F541x/F543x) i opisuje trzy problemy:
 
 
