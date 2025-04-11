@@ -179,6 +179,30 @@ Te zmiany powinny sprawić, że RTC będzie działać poprawnie i dioda zacznie 
 1. Usunięcie konfiguracji kryształu XT1 - nie jest ona potrzebna przy korzystaniu z RTCSSEL_2
 2. Zmiana RTCSSEL_0 na RTCSSEL_2 w rejestrze RTCCTL01
 3. Zmiana dzielnika RT0PSDIV_7 (/128) na RT0PSDIV_2 (/8) w rejestrze RTCPS0CTL
+   
+Konfiguracja kryształu XT1 nie jest potrzebna przy korzystaniu z RTCSSEL_2, ponieważ RTCSSEL_2 wybiera inny sygnał zegarowy jako źródło dla RTC.
+
+Wyjaśnienie:
+
+1. **RTCSSEL_0** oznacza, że RTC ma używać kryształu XT1 jako źródła zegara:
+   - Przy tym ustawieniu kryształ XT1 musi być prawidłowo skonfigurowany
+   - Wymaga to konfiguracji pinów P7.0 i P7.1 jako funkcji kryształu
+   - Wymaga również inicjalizacji i stabilizacji oscylatora XT1
+
+2. **RTCSSEL_2** oznacza, że RTC używa wyjścia z preskalera RT1PS jako źródła zegara:
+   - RT1PS jest wewnętrznym dzielnikiem częstotliwości
+   - RT1PS może pobierać sygnał z wewnętrznego zegara ACLK (domyślnie)
+   - Nie wymaga zewnętrznego kryształu XT1 do działania
+
+W działającym przykładzie:
+```c
+RTCPS0CTL = RT0PSDIV_2;                   // ACLK, /8, start timer
+RTCPS1CTL = RT1SSEL_2 + RT1PSDIV_3;       // out from RT0PS, /16, start timer
+```
+
+Używany jest wewnętrzny zegar ACLK, który jest dzielony przez preskaler RT0PS (/8), a następnie przez RT1PS (/16). Te dzielniki generują sygnał, który jest używany do odmierzania czasu w RTC.
+
+Ponieważ w tym przypadku RTC używa wewnętrznego sygnału zegarowego (ACLK) zamiast zewnętrznego kryształu XT1, cała konfiguracja XT1 staje się zbędna i można ją bezpiecznie usunąć.
 
 ```c
 #include <msp430.h>
