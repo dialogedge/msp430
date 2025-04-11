@@ -25,6 +25,7 @@ Dodatkowo errata wspomina o problemie z sekwencją wejściową BSL (Bootstrap Lo
   
 KOD Z NIE-MIGAJACA DIODA
 ```c
+// make GCC_DIR=/home/tom/ti/gcc DEVICE=MSP430F5419A EXAMPLE=msp430x54xA_RTC_03
 #include <msp430.h>
 
 int main(void)
@@ -105,7 +106,7 @@ Dodatkowo, pierwszy kod może być dotknięty przez problem opisany w erracie "S
 KOD Z MIGAJACA DIODA  
 ```c
 //******************************************************************************
-//  MSP430F543xA Demo - RTC in Counter Mode toggles P1.0 every 1s
+//  MSP430F543xA Demo - RTC in Counter Mode toggles P8.0 every 1s
 //
 //  This program demonstrates RTC in counter mode configured to source from ACLK
 //  to toggle P1.0 LED every 1s.
@@ -116,14 +117,14 @@ KOD Z MIGAJACA DIODA
 //         |  |                 |
 //         ---|RST              |
 //            |                 |
-//            |             P1.0|-->LED
+//            |             P8.0|-->LED
 //
 //   M. Morales
 //   Texas Instruments Inc.
 //   June 2009
 //   Built with CCE Version: 3.2.2 and IAR Embedded Workbench Version: 4.11B
 //******************************************************************************
-// make GCC_DIR=/mnt/c/ti/gcclin DEVICE=MSP430F5419A EXAMPLE=msp430x54xA_RTC_01
+// make GCC_DIR=/home/tom/ti/gcc DEVICE=MSP430F5419A EXAMPLE=msp430x54xA_RTC_01
 
 #include <msp430.h>
 
