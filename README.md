@@ -23,7 +23,7 @@ Dodatkowo errata wspomina o problemie z sekwencją wejściową BSL (Bootstrap Lo
 
 
   
-
+KOD Z NIE-MIGAJACA DIODA
 ```c
 #include <msp430.h>
 
@@ -73,9 +73,36 @@ __interrupt void RTC_ISR(void)
 
 ```
 
-+ Port P8.0 powinien co sekunde dawac sygnal na przemian niski i wysoki a nie robi tego w trybie RTC, tylko bez tego w przykladzie podanym ponizej:
++ Port P8.0 powinien co sekunde dawac sygnal na przemian niski i wysoki a nie robi tego w trybie RTC
++ Ponizej program dziala poprawnie, dioda miga
 
-  
+kluczowe różnice, które wyjaśniają dlaczego drugi program działa poprawnie (dioda miga), a pierwszy nie:
+
+### Źródło zegara dla RTC:
+- Pierwszy przykład: `RTCCTL01 = RTCTEVIE | RTCSSEL_0 | RTCTEV_0;` używa RTCSSEL_0 (kryształ XT1)
+- Drugi przykład: `RTCCTL01 = RTCTEVIE + RTCSSEL_2 + RTCTEV_0;` używa RTCSSEL_2 (wyjście RT1PS)
+
+### Konfiguracja preskalera:
+- Pierwszy przykład: RT0PSDIV_7 (÷128) i RT1SSEL_2 | RT1PSDIV_3 (źródło RT0PS, ÷16)
+- Drugi przykład: RT0PSDIV_2 (÷8) i RT1SSEL_2 + RT1PSDIV_3 (źródło RT0PS, ÷16)
+
+Problem jest związany jest z błędem opisanym w erracie "RTC6 - Unreliable write to RTC register". 
+W pierwszym kodzie uywamy XT1, ale zapisy do rejestrów RTC **mogą być niestabilne i dawać nieoczekiwane wyniki**. 
+
+### Drugi kod (działający):
+1. Używa innego źródła zegara dla RTC (RTCSSEL_2 zamiast RTCSSEL_0)
+2. Używa innych ustawień preskalera
+3. Jest oficjalnym przykładem od TI, który prawdopodobnie zawiera obejścia znanych błędów
+
+### Jak naprawi pierwszy kod?
+Propozycje:
+1. Zmienić źródło zegara z XT1 (RTCSSEL_0) na RT1PS (RTCSSEL_2)
+2. Dostosować ustawienia preskalera do działającego przykładu
+3. Użyć biblioteki RTC_Workaround wymienionej w erracie (http://www.ti.com/lit/zip/slac166)
+
+Dodatkowo, pierwszy kod może być dotknięty przez problem opisany w erracie "SYS10 - RTC frequency adjustment step size issue", co wpływa na dokładność odmierzania czasu.
+
+KOD Z MIGAJACA DIODA  
 ```c
 //******************************************************************************
 //  MSP430F543xA Demo - RTC in Counter Mode toggles P1.0 every 1s
