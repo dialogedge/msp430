@@ -102,6 +102,21 @@ Propozycje:
 Dodatkowo, pierwszy kod może być dotknięty przez problem opisany w erracie "SYS10 - RTC frequency adjustment step size issue", co wpływa na dokładność odmierzania czasu.
 
 ### KOD Z MIGAJACA DIODA  msp430x54xA_RTC_01
+
+przykład, który omija znane problemy RTC w tych mikrokontrolerach, ktory nie korzysta bezpośrednio z rejestrów RTC, które są wymienione w erracie. 
+Zamiast tego używa bezpiecznych metod do konfiguracji zegara RTC:
+
+1. Przykład używa RTC w trybie licznika (Counter Mode), a nie w trybie kalendarza, więc nie używa problematycznych rejestrów SEC, MIN, HOUR, DATE, MON, YEAR, DOW, których dotyczy błąd RTC6.
+
+2. Program konfiguruje:
+   - RTCCTL01 do ustawienia trybu licznika z RTCSSEL_2 (wybór źródła zegara) i włączenia przerwań
+   - RTCPS0CTL i RTCPS1CTL do konfiguracji podziału częstotliwości
+
+3. Obsługa przerwań jest realizowana poprzez odpowiednie przerwanie RTC_VECTOR i instrukcję switch, która sprawdza rejestr RTCIV, aby określić źródło przerwania.
+
+Program jest prosty - włącza diodę LED podłączoną do pinu P8.0 i konfiguruje RTC w trybie licznika do generowania przerwań, które przełączają stan diody co 1 sekundę. Nie używa on zapisów do rejestrów czasu rzeczywistego, które są wymienione jako problematyczne w erracie, więc nie powinien być dotknięty opisanymi problemami.
+
+
 ```c
 //******************************************************************************
 //  MSP430F543xA Demo - RTC in Counter Mode toggles P8.0 every 1s
@@ -171,15 +186,11 @@ void __attribute__ ((interrupt(RTC_VECTOR))) RTC_ISR (void)
 ```
 
 
-## Poprawione
+## Poprawienie msp430x54xA_RTC_05
 
 
 Te zmiany powinny sprawić, że RTC będzie działać poprawnie i dioda zacznie migać co sekundę, tak jak w działającym przykładzie.
 
-1. Usunięcie konfiguracji kryształu XT1 - nie jest ona potrzebna przy korzystaniu z RTCSSEL_2
-2. Zmiana RTCSSEL_0 na RTCSSEL_2 w rejestrze RTCCTL01
-3. Zmiana dzielnika RT0PSDIV_7 (/128) na RT0PSDIV_2 (/8) w rejestrze RTCPS0CTL
-   
 Konfiguracja kryształu XT1 nie jest potrzebna przy korzystaniu z RTCSSEL_2, ponieważ RTCSSEL_2 wybiera inny sygnał zegarowy jako źródło dla RTC.
 
 Wyjaśnienie:
@@ -204,40 +215,82 @@ Używany jest wewnętrzny zegar ACLK, który jest dzielony przez preskaler RT0PS
 
 Ponieważ w tym przypadku RTC używa wewnętrznego sygnału zegarowego (ACLK) zamiast zewnętrznego kryształu XT1, cała konfiguracja XT1 staje się zbędna i można ją bezpiecznie usunąć.
 
+
+
+Po przeprowadzeniu dokładnej analizy, mogę wyjaśnić dlaczego drugi przykład działa prawidłowo:
+
+1. **Źródło zegara dla RTC**:
+   - Działający przykład używa `RTCSSEL_2` (wyjście z preskalera RT1PS) jako źródła zegara
+   - Niedziałający przykład używa `RTCSSEL_0` (zewnętrzny kryształ XT1)
+   - Wykorzystanie wewnętrznego źródła RT1PS omija problemy z kryształem XT1 opisane w erracie
+
+2. **Preskaler RTC**:
+   - Działający przykład używa `RT0PSDIV_2` (dzielnik /8)
+   - Niedziałający przykład używa `RT0PSDIV_7` (dzielnik /128)
+   - Różnica w dzielnikach wpływa na częstotliwość generowanych przerwań
+
+3. **Unikanie znanych błędów z erraty**:
+   - Działający przykład unika problemu "RTC6 - Unreliable write to RTC register" przez:
+     - Nieużywanie zewnętrznego kryształu XT1
+     - Korzystanie z wewnętrznego źródła zegara RT1PS
+   - Konfiguracja w działającym przykładzie jest zgodna z rekomendacjami TI
+
+4. **Brak konfiguracji kryształu**:
+   - Działający przykład nie wymaga konfiguracji i stabilizacji kryształu XT1
+   - Eliminuje to potencjalne problemy z inicjalizacją i stabilizacją zewnętrznego oscylatora
+
+5. **Struktura obsługi przerwania**:
+   - Działający przykład zawiera pełną obsługę wszystkich możliwych kodów przerwania RTC
+   - To zapewnia, że wszystkie potencjalne przerwania są obsługiwane poprawnie
+
+Ten działający przykład jest oficjalnym kodem demonstracyjnym od Texas Instruments, prawdopodobnie zaprojektowanym z uwzględnieniem znanych problemów opisanych w erracie dla tego mikrokontrolera.
+Dzięki użyciu wewnętrznego źródła zegara i odpowiedniej konfiguracji dzielników, może on uniknąć błędów, które występują przy bezpośrednim korzystaniu z zewnętrznego kryształu.
+
 ```c
 #include <msp430.h>
 
 int main(void)
 {
-    // Wyłączenie watchdoga
-    WDTCTL = WDTPW | WDTHOLD;
+  WDTCTL = WDTPW+WDTHOLD;
+  
+  P8DIR |= BIT0;
+  P8OUT |= BIT0;  // Dioda włączona na początek
+  
+  // Setup RTC Timer - dokładnie jak w działającym przykładzie
+  RTCCTL01 = RTCTEVIE + RTCSSEL_2 + RTCTEV_0; // Counter Mode, RTC1PS, 8-bit ovf
+                                            // overflow interrupt enable
+  RTCPS0CTL = RT0PSDIV_2;                   // ACLK, /8, start timer
+  RTCPS1CTL = RT1SSEL_2 + RT1PSDIV_3;       // out from RT0PS, /16, start timer
 
-    // Konfiguracja pinu diody
-    P8DIR |= BIT0;       // Ustawienie P8.0 jako wyjście
-    P8OUT &= ~BIT0;      // Wyłączenie diody przy starcie
-
-    // Zmiana w stosunku do oryginalnego kodu - usunięcie konfiguracji XT1
-    // Konfiguracja RTC - zmiana źródła zegara z RTCSSEL_0 na RTCSSEL_2
-    RTCCTL01 = RTCTEVIE | RTCSSEL_2 | RTCTEV_0;  // Źródło: RT1PS, przerwanie co sekundę
-    
-    // Zmiana ustawień preskalera zgodnie z działającym przykładem
-    RTCPS0CTL = RT0PSDIV_2;  // Dzielnik /8 zamiast /128
-    RTCPS1CTL = RT1SSEL_2 | RT1PSDIV_3;  // Źródło: RT0PS, dzielnik /16 (bez zmian)
-
-    // Włączenie przerwań i tryb niskiego poboru mocy
-    __bis_SR_register(LPM3_bits | GIE);
-
-    return 0;
+  __bis_SR_register(LPM3_bits + GIE);
+  
+  return 0;  // Ten return nigdy się nie wykona w trybie LPM3
 }
 
-// Procedura obsługi przerwania RTC - bez zmian
+// Użyjmy dokładnie takiej samej struktury obsługi przerwania jak w działającym przykładzie
+#if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
 #pragma vector=RTC_VECTOR
 __interrupt void RTC_ISR(void)
+#elif defined(__GNUC__)
+void __attribute__ ((interrupt(RTC_VECTOR))) RTC_ISR (void)
+#else
+#error Compiler not supported!
+#endif
 {
-    switch(__even_in_range(RTCIV, 16)) {
-        case 4:  // Przerwanie od zdarzenia RTC
-            P8OUT ^= BIT0;  // Przełączenie stanu diody
-            break;
-    }
+  switch(__even_in_range(RTCIV,16))
+  {
+    case 0: break;                          // No interrupts
+    case 2: break;                          // RTCRDYIFG
+    case 4:                                 // RTCEVIFG
+      P8OUT ^= BIT0;
+      break;
+    case 6: break;                          // RTCAIFG
+    case 8: break;                          // RT0PSIFG
+    case 10: break;                         // RT1PSIFG
+    case 12: break;                         // Reserved
+    case 14: break;                         // Reserved
+    case 16: break;                         // Reserved
+    default: break;
+  }
 }
 ```
