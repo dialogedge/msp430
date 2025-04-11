@@ -17,3 +17,129 @@ dotyczy mikrokontrolera z rodziny MSP430 (F541x/F543x) i opisuje trzy problemy:
    - **Rozwiązanie**: W trybie BCD można zapisać połowę wartości kalibracji do rejestru RTCCAL, aby skompensować podwojony rozmiar kroku.
 
 Dodatkowo errata wspomina o problemie z sekwencją wejściową BSL (Bootstrap Loader), która podlega określonym wymaganiom czasowym - faza niska pinu TEST/SBWTCK nie może przekraczać 15μs, co jest szybsze niż większość portów szeregowych PC może zapewnić.
+
+## Przyklad problemu z poborem pradu do 4mA z baterii litowej po odlaczeniu zasilania
+
+
+
+  
+
+```c
+#include <msp430.h>
+
+int main(void)
+{
+    // Wyłączenie watchdoga
+    WDTCTL = WDTPW | WDTHOLD;
+
+    // Konfiguracja pinu diody
+    P8DIR |= BIT0;       // Ustawienie P8.0 jako wyjście
+    P8OUT &= ~BIT0;      // Wyłączenie diody przy starcie
+
+    // Konfiguracja pinów kryształu
+    P7SEL |= BIT0 | BIT1;   // P7.0 i P7.1 jako funkcja kryształu 
+
+    // Konfiguracja oscylatora XT1
+    UCSCTL6 &= ~XT1OFF;     // Włączenie XT1
+    UCSCTL6 |= XCAP_0;      // Wyłączenie wewnętrznych kondensatorów
+
+    // Czekaj na stabilizację kryształu
+    do {
+        UCSCTL7 &= ~(XT1LFOFFG + DCOFFG);  // Wyczyść flagi błędów
+        SFRIFG1 &= ~OFIFG;                 // Wyczyść główną flagę błędu oscylatora
+    } while (SFRIFG1 & OFIFG);              // Czekaj na ustabilizowanie się oscylatora
+
+    // Konfiguracja RTC
+    RTCCTL01 = RTCTEVIE | RTCSSEL_0 | RTCTEV_0;  // Źródło zegara: XT1, przerwanie co sekundę
+    RTCPS0CTL = RT0PSDIV_7;  // Dzielnik /128
+    RTCPS1CTL = RT1SSEL_2 | RT1PSDIV_3;  // Źródło: RT0PS, dzielnik /16
+
+    // Włączenie przerwań i tryb niskiego poboru mocy
+    __bis_SR_register(LPM3_bits | GIE);
+
+    return 0;
+}
+
+// Procedura obsługi przerwania RTC
+#pragma vector=RTC_VECTOR
+__interrupt void RTC_ISR(void)
+{
+    switch(__even_in_range(RTCIV, 16)) {
+        case 4:  // Przerwanie od zdarzenia RTC
+            P8OUT ^= BIT0;  // Przełączenie stanu diody
+            break;
+    }
+}
+
+```
+
++ Port P8.0 powinien co sekunde dawac sygnal na przemian niski i wysoki a nie robi tego w trybie RTC, tylko bez tego w przykladzie podanym ponizej:
+
+  
+```c
+//******************************************************************************
+//  MSP430F543xA Demo - RTC in Counter Mode toggles P1.0 every 1s
+//
+//  This program demonstrates RTC in counter mode configured to source from ACLK
+//  to toggle P1.0 LED every 1s.
+//
+//                MSP430F5438A
+//             -----------------
+//        /|\ |                 |
+//         |  |                 |
+//         ---|RST              |
+//            |                 |
+//            |             P1.0|-->LED
+//
+//   M. Morales
+//   Texas Instruments Inc.
+//   June 2009
+//   Built with CCE Version: 3.2.2 and IAR Embedded Workbench Version: 4.11B
+//******************************************************************************
+// make GCC_DIR=/mnt/c/ti/gcclin DEVICE=MSP430F5419A EXAMPLE=msp430x54xA_RTC_01
+
+#include <msp430.h>
+
+int main(void)
+{
+  WDTCTL = WDTPW+WDTHOLD;
+  
+  P8DIR |= BIT0;
+  P8OUT |= BIT0;
+  
+
+  // Setup RTC Timer
+  RTCCTL01 = RTCTEVIE + RTCSSEL_2 + RTCTEV_0; // Counter Mode, RTC1PS, 8-bit ovf
+                                            // overflow interrupt enable
+  RTCPS0CTL = RT0PSDIV_2;                   // ACLK, /8, start timer
+  RTCPS1CTL = RT1SSEL_2 + RT1PSDIV_3;       // out from RT0PS, /16, start timer
+
+  __bis_SR_register(LPM3_bits + GIE);
+}
+
+#if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
+#pragma vector=RTC_VECTOR
+__interrupt void RTC_ISR(void)
+#elif defined(__GNUC__)
+void __attribute__ ((interrupt(RTC_VECTOR))) RTC_ISR (void)
+#else
+#error Compiler not supported!
+#endif
+{
+  switch(__even_in_range(RTCIV,16))
+  {
+    case 0: break;                          // No interrupts
+    case 2: break;                          // RTCRDYIFG
+    case 4:                                 // RTCEVIFG
+      P8OUT ^= BIT0;
+      break;
+    case 6: break;                          // RTCAIFG
+    case 8: break;                          // RT0PSIFG
+    case 10: break;                         // RT1PSIFG
+    case 12: break;                         // Reserved
+    case 14: break;                         // Reserved
+    case 16: break;                         // Reserved
+    default: break;
+  }
+}
+```
