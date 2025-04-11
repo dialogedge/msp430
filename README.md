@@ -18,12 +18,10 @@ dotyczy mikrokontrolera z rodziny MSP430 (F541x/F543x) i opisuje trzy problemy:
 
 Dodatkowo errata wspomina o problemie z sekwencją wejściową BSL (Bootstrap Loader), która podlega określonym wymaganiom czasowym - faza niska pinu TEST/SBWTCK nie może przekraczać 15μs, co jest szybsze niż większość portów szeregowych PC może zapewnić.
 
-## Przyklad problemu z poborem pradu do 4mA z baterii litowej po odlaczeniu zasilania
-
-
+## Przyklady problemu z poborem pradu do 4mA z baterii litowej po odlaczeniu zasilania
 
   
-KOD Z NIE-MIGAJACA DIODA
+### KOD Z NIE-MIGAJACA DIODA msp430x54xA_RTC_03
 ```c
 // make GCC_DIR=/home/tom/ti/gcc DEVICE=MSP430F5419A EXAMPLE=msp430x54xA_RTC_03
 #include <msp430.h>
@@ -103,7 +101,7 @@ Propozycje:
 
 Dodatkowo, pierwszy kod może być dotknięty przez problem opisany w erracie "SYS10 - RTC frequency adjustment step size issue", co wpływa na dokładność odmierzania czasu.
 
-KOD Z MIGAJACA DIODA  
+### KOD Z MIGAJACA DIODA  msp430x54xA_RTC_01
 ```c
 //******************************************************************************
 //  MSP430F543xA Demo - RTC in Counter Mode toggles P8.0 every 1s
@@ -169,5 +167,53 @@ void __attribute__ ((interrupt(RTC_VECTOR))) RTC_ISR (void)
     case 16: break;                         // Reserved
     default: break;
   }
+}
+```
+
+
+## Poprawione
+
+
+Te zmiany powinny sprawić, że RTC będzie działać poprawnie i dioda zacznie migać co sekundę, tak jak w działającym przykładzie.
+
+1. Usunięcie konfiguracji kryształu XT1 - nie jest ona potrzebna przy korzystaniu z RTCSSEL_2
+2. Zmiana RTCSSEL_0 na RTCSSEL_2 w rejestrze RTCCTL01
+3. Zmiana dzielnika RT0PSDIV_7 (/128) na RT0PSDIV_2 (/8) w rejestrze RTCPS0CTL
+
+```c
+#include <msp430.h>
+
+int main(void)
+{
+    // Wyłączenie watchdoga
+    WDTCTL = WDTPW | WDTHOLD;
+
+    // Konfiguracja pinu diody
+    P8DIR |= BIT0;       // Ustawienie P8.0 jako wyjście
+    P8OUT &= ~BIT0;      // Wyłączenie diody przy starcie
+
+    // Zmiana w stosunku do oryginalnego kodu - usunięcie konfiguracji XT1
+    // Konfiguracja RTC - zmiana źródła zegara z RTCSSEL_0 na RTCSSEL_2
+    RTCCTL01 = RTCTEVIE | RTCSSEL_2 | RTCTEV_0;  // Źródło: RT1PS, przerwanie co sekundę
+    
+    // Zmiana ustawień preskalera zgodnie z działającym przykładem
+    RTCPS0CTL = RT0PSDIV_2;  // Dzielnik /8 zamiast /128
+    RTCPS1CTL = RT1SSEL_2 | RT1PSDIV_3;  // Źródło: RT0PS, dzielnik /16 (bez zmian)
+
+    // Włączenie przerwań i tryb niskiego poboru mocy
+    __bis_SR_register(LPM3_bits | GIE);
+
+    return 0;
+}
+
+// Procedura obsługi przerwania RTC - bez zmian
+#pragma vector=RTC_VECTOR
+__interrupt void RTC_ISR(void)
+{
+    switch(__even_in_range(RTCIV, 16)) {
+        case 4:  // Przerwanie od zdarzenia RTC
+            P8OUT ^= BIT0;  // Przełączenie stanu diody
+            break;
+    }
 }
 ```
