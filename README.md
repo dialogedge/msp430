@@ -1,7 +1,7 @@
 # msp430
 
 errata na stronie [errata-slaz282ac.pdf](https://github.com/dialogedge/msp430/blob/main/errata-slaz282ac.pdf)
-dotyczy mikrokontrolera z rodziny MSP430 (najprawdopodobniej F541x/F543x) i opisuje trzy problemy:
+dotyczy mikrokontrolera z rodziny MSP430 (F541x/F543x) i opisuje trzy problemy:
 
 
 1. **RTC3 - Port interrupt may be missed on entry to LPMx.5**
